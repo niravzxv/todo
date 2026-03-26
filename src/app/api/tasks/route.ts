@@ -15,15 +15,30 @@ export interface Task {
 }
 
 // ---------------------------------------------------------------------------
-// Storage layer — Upstash Redis when env vars are present, local JSON otherwise
+// Storage layer
+//   1. Upstash Redis   — when UPSTASH_REDIS_REST_URL + TOKEN are set (Vercel prod)
+//   2. /tmp/tasks.json — on Vercel without Redis (ephemeral, but no crash)
+//   3. data/tasks.json — local development
 // ---------------------------------------------------------------------------
 
-const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;
-const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+// Vercel prefixes env vars with the project name (e.g. todo_KV_REST_API_URL).
+// We check both the prefixed and standard names so the app works in any setup.
+const REDIS_URL =
+  process.env.todo_KV_REST_API_URL ||
+  process.env.KV_REST_API_URL ||
+  process.env.UPSTASH_REDIS_REST_URL;
+const REDIS_TOKEN =
+  process.env.todo_KV_REST_API_TOKEN ||
+  process.env.KV_REST_API_TOKEN ||
+  process.env.UPSTASH_REDIS_REST_TOKEN;
 const USE_REDIS = Boolean(REDIS_URL && REDIS_TOKEN);
+const ON_VERCEL = process.env.VERCEL === "1";
 const REDIS_KEY = "tasks";
 
-const LOCAL_FILE = path.join(process.cwd(), "data", "tasks.json");
+// On Vercel only /tmp is writable; locally use the committed data/ directory.
+const LOCAL_FILE = ON_VERCEL
+  ? "/tmp/tasks.json"
+  : path.join(process.cwd(), "data", "tasks.json");
 
 async function readTasks(): Promise<Task[]> {
   if (USE_REDIS) {
