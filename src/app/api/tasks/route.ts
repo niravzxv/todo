@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
-const DATA_FILE = path.join(process.cwd(), "data", "tasks.json");
-
 export interface Task {
   id: string;
   taskNumber: number;
@@ -16,29 +14,68 @@ export interface Task {
   completedAt: string | null;
 }
 
-function readTasks(): Task[] {
+// ---------------------------------------------------------------------------
+// Storage layer — Upstash Redis when env vars are present, local JSON otherwise
+// ---------------------------------------------------------------------------
+
+const REDIS_URL = process.env.UPSTASH_REDIS_REST_URL;
+const REDIS_TOKEN = process.env.UPSTASH_REDIS_REST_TOKEN;
+const USE_REDIS = Boolean(REDIS_URL && REDIS_TOKEN);
+const REDIS_KEY = "tasks";
+
+const LOCAL_FILE = path.join(process.cwd(), "data", "tasks.json");
+
+async function readTasks(): Promise<Task[]> {
+  if (USE_REDIS) {
+    const res = await fetch(`${REDIS_URL}/get/${REDIS_KEY}`, {
+      headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+      cache: "no-store",
+    });
+    const json = await res.json();
+    if (!json.result) return [];
+    const value = typeof json.result === "string" ? JSON.parse(json.result) : json.result;
+    return Array.isArray(value) ? value : [];
+  }
+
   try {
-    const raw = fs.readFileSync(DATA_FILE, "utf-8");
+    const raw = fs.readFileSync(LOCAL_FILE, "utf-8");
     return JSON.parse(raw) as Task[];
   } catch {
     return [];
   }
 }
 
-function writeTasks(tasks: Task[]): void {
-  fs.writeFileSync(DATA_FILE, JSON.stringify(tasks, null, 2), "utf-8");
+async function writeTasks(tasks: Task[]): Promise<void> {
+  if (USE_REDIS) {
+    await fetch(`${REDIS_URL}/set/${REDIS_KEY}`, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${REDIS_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ value: JSON.stringify(tasks) }),
+    });
+    return;
+  }
+
+  fs.writeFileSync(LOCAL_FILE, JSON.stringify(tasks, null, 2), "utf-8");
 }
 
+// ---------------------------------------------------------------------------
+// Route handlers
+// ---------------------------------------------------------------------------
+
 export async function GET() {
-  const tasks = readTasks();
+  const tasks = await readTasks();
   return NextResponse.json(tasks);
 }
 
 export async function POST(req: NextRequest) {
   const body = await req.json();
-  const tasks = readTasks();
+  const tasks = await readTasks();
 
-  const taskNumber = tasks.length > 0 ? Math.max(...tasks.map((t) => t.taskNumber)) + 1 : 1;
+  const taskNumber =
+    tasks.length > 0 ? Math.max(...tasks.map((t) => t.taskNumber)) + 1 : 1;
 
   const newTask: Task = {
     id: `task#${taskNumber}`,
@@ -53,7 +90,7 @@ export async function POST(req: NextRequest) {
   };
 
   tasks.push(newTask);
-  writeTasks(tasks);
+  await writeTasks(tasks);
 
   return NextResponse.json(newTask, { status: 201 });
 }
@@ -62,7 +99,7 @@ export async function PATCH(req: NextRequest) {
   const body = await req.json();
   const { id, action } = body as { id: string; action: "start" | "complete" };
 
-  const tasks = readTasks();
+  const tasks = await readTasks();
   const index = tasks.findIndex((t) => t.id === id);
 
   if (index === -1) {
@@ -78,11 +115,14 @@ export async function PATCH(req: NextRequest) {
     task.status = "completed";
     task.completedAt = new Date().toISOString();
   } else {
-    return NextResponse.json({ error: "Invalid action for current status" }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid action for current status" },
+      { status: 400 }
+    );
   }
 
   tasks[index] = task;
-  writeTasks(tasks);
+  await writeTasks(tasks);
 
   return NextResponse.json(task);
 }
@@ -95,13 +135,13 @@ export async function DELETE(req: NextRequest) {
     return NextResponse.json({ error: "Missing id" }, { status: 400 });
   }
 
-  const tasks = readTasks();
+  const tasks = await readTasks();
   const filtered = tasks.filter((t) => t.id !== id);
 
   if (filtered.length === tasks.length) {
     return NextResponse.json({ error: "Task not found" }, { status: 404 });
   }
 
-  writeTasks(filtered);
+  await writeTasks(filtered);
   return NextResponse.json({ success: true });
 }
