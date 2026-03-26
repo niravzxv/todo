@@ -40,16 +40,26 @@ const LOCAL_FILE = ON_VERCEL
   ? "/tmp/tasks.json"
   : path.join(process.cwd(), "data", "tasks.json");
 
+// Upstash REST API uses Redis command arrays: ["GET", key] / ["SET", key, value]
 async function readTasks(): Promise<Task[]> {
   if (USE_REDIS) {
-    const res = await fetch(`${REDIS_URL}/get/${REDIS_KEY}`, {
-      headers: { Authorization: `Bearer ${REDIS_TOKEN}` },
+    const res = await fetch(REDIS_URL!, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${REDIS_TOKEN}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(["GET", REDIS_KEY]),
       cache: "no-store",
     });
     const json = await res.json();
     if (!json.result) return [];
-    const value = typeof json.result === "string" ? JSON.parse(json.result) : json.result;
-    return Array.isArray(value) ? value : [];
+    try {
+      const parsed = typeof json.result === "string" ? JSON.parse(json.result) : json.result;
+      return Array.isArray(parsed) ? parsed : [];
+    } catch {
+      return [];
+    }
   }
 
   try {
@@ -62,13 +72,13 @@ async function readTasks(): Promise<Task[]> {
 
 async function writeTasks(tasks: Task[]): Promise<void> {
   if (USE_REDIS) {
-    await fetch(`${REDIS_URL}/set/${REDIS_KEY}`, {
+    await fetch(REDIS_URL!, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${REDIS_TOKEN}`,
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ value: JSON.stringify(tasks) }),
+      body: JSON.stringify(["SET", REDIS_KEY, JSON.stringify(tasks)]),
     });
     return;
   }
