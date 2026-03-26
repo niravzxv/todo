@@ -10,4 +10,4 @@ export interface Task {
   completedAt: string | null;
 }
 
-export type TabType = "pending" | "in_progress" | "completed";
+export type TabType = "pending" | "in_progress" | "completed" | "notepad";

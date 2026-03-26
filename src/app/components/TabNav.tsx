@@ -1,7 +1,7 @@
 "use client";
 
 import { motion } from "framer-motion";
-import { Clock, Loader2, CheckCircle2 } from "lucide-react";
+import { Clock, Loader2, CheckCircle2, NotebookPen } from "lucide-react";
 import { TabType, Task } from "@/app/types";
 
 interface TabNavProps {
@@ -29,13 +29,20 @@ const tabs: { id: TabType; label: string; icon: React.ReactNode; color: string }
     icon: <CheckCircle2 className="w-4 h-4" />,
     color: "from-emerald-400 to-teal-500",
   },
+  {
+    id: "notepad",
+    label: "Notepad",
+    icon: <NotebookPen className="w-4 h-4" />,
+    color: "from-teal-400 to-cyan-500",
+  },
 ];
 
 export default function TabNav({ activeTab, onTabChange, tasks }: TabNavProps) {
-  const getCount = (tab: TabType) => tasks.filter((t) => t.status === tab).length;
+  const getCount = (tab: TabType) =>
+    tab === "notepad" ? 0 : tasks.filter((t) => t.status === tab).length;
 
   return (
-    <div className="flex gap-2 p-1.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20">
+    <div className="flex gap-1.5 p-1.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20">
       {tabs.map((tab) => {
         const isActive = activeTab === tab.id;
         const count = getCount(tab.id);
@@ -44,7 +51,7 @@ export default function TabNav({ activeTab, onTabChange, tasks }: TabNavProps) {
           <button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
-            className="relative flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200 focus:outline-none"
+            className="relative flex-1 flex items-center justify-center gap-2 px-3 py-3 rounded-xl text-sm font-semibold transition-all duration-200 focus:outline-none"
           >
             {isActive && (
               <motion.div

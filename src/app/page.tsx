@@ -2,26 +2,31 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ListTodo, Sparkles, RefreshCw } from "lucide-react";
+import { Plus, ListTodo, Sparkles, RefreshCw, LogOut } from "lucide-react";
+import { useRouter } from "next/navigation";
 import TabNav from "@/app/components/TabNav";
 import TaskCard from "@/app/components/TaskCard";
 import AddTaskModal from "@/app/components/AddTaskModal";
 import DownloadButton from "@/app/components/DownloadButton";
+import Notepad from "@/app/components/Notepad";
 import { Task, TabType } from "@/app/types";
 
 const tabDirection: Record<TabType, number> = {
   pending: 0,
   in_progress: 1,
   completed: 2,
+  notepad: 3,
 };
 
 export default function Home() {
+  const router = useRouter();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [activeTab, setActiveTab] = useState<TabType>("pending");
   const [prevTab, setPrevTab] = useState<TabType>("pending");
   const [modalOpen, setModalOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [loggingOut, setLoggingOut] = useState(false);
 
   const fetchTasks = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -82,10 +87,17 @@ export default function Home() {
     await fetchTasks(true);
   };
 
+  const handleLogout = async () => {
+    setLoggingOut(true);
+    await fetch("/api/auth", { method: "DELETE" });
+    router.replace("/login");
+  };
+
   const filteredTasks = tasks.filter((t) => t.status === activeTab);
   const direction = tabDirection[activeTab] - tabDirection[prevTab];
+  const isTaskTab = activeTab !== "notepad";
 
-  const emptyMessages: Record<TabType, { title: string; subtitle: string }> = {
+  const emptyMessages: Record<string, { title: string; subtitle: string }> = {
     pending: {
       title: "No pending tasks",
       subtitle: 'Click "+ Add Task" to create your first task',
@@ -117,17 +129,40 @@ export default function Home() {
           transition={{ duration: 0.5 }}
           className="mb-8"
         >
-          <div className="flex items-center gap-3 mb-2">
-            <div className="p-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shadow-violet-500/25">
-              <ListTodo className="w-6 h-6 text-white" />
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 shadow-lg shadow-violet-500/25">
+                <ListTodo className="w-6 h-6 text-white" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-2">
+                  TaskFlow
+                  <Sparkles className="w-5 h-5 text-violet-400" />
+                </h1>
+                <p className="text-white/45 text-sm">Track your work, stay on top of everything</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-white tracking-tight flex items-center gap-2">
-                TaskFlow
-                <Sparkles className="w-5 h-5 text-violet-400" />
-              </h1>
-              <p className="text-white/45 text-sm">Track your work, stay on top of everything</p>
-            </div>
+
+            {/* Logout button */}
+            <motion.button
+              onClick={handleLogout}
+              disabled={loggingOut}
+              whileHover={{ scale: 1.05 }}
+              whileTap={{ scale: 0.95 }}
+              title="Sign out"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl text-white/40 hover:text-white hover:bg-white/10 border border-transparent hover:border-white/10 transition-all duration-200 text-sm"
+            >
+              {loggingOut ? (
+                <motion.div
+                  animate={{ rotate: 360 }}
+                  transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                  className="w-4 h-4 border-2 border-white/20 border-t-white/60 rounded-full"
+                />
+              ) : (
+                <LogOut className="w-4 h-4" />
+              )}
+              <span className="hidden sm:inline">Sign out</span>
+            </motion.button>
           </div>
 
           <div className="flex items-center justify-between mt-4">
@@ -174,18 +209,31 @@ export default function Home() {
           </motion.div>
         )}
 
-        {/* Task List */}
-        {loading ? (
-          <div className="flex flex-col items-center justify-center py-24 gap-4">
+        {/* Main Content */}
+        <AnimatePresence mode="wait">
+          {activeTab === "notepad" ? (
             <motion.div
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-              className="w-8 h-8 border-2 border-violet-400/30 border-t-violet-400 rounded-full"
-            />
-            <p className="text-white/40 text-sm">Loading tasks...</p>
-          </div>
-        ) : (
-          <AnimatePresence mode="wait">
+              key="notepad"
+              initial={{ opacity: 0, x: 40 }}
+              animate={{ opacity: 1, x: 0 }}
+              exit={{ opacity: 0, x: -40 }}
+              transition={{ duration: 0.25, ease: "easeInOut" }}
+            >
+              <Notepad />
+            </motion.div>
+          ) : loading ? (
+            <motion.div
+              key="loading"
+              className="flex flex-col items-center justify-center py-24 gap-4"
+            >
+              <motion.div
+                animate={{ rotate: 360 }}
+                transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                className="w-8 h-8 border-2 border-violet-400/30 border-t-violet-400 rounded-full"
+              />
+              <p className="text-white/40 text-sm">Loading tasks...</p>
+            </motion.div>
+          ) : (
             <motion.div
               key={activeTab}
               initial={{ opacity: 0, x: direction > 0 ? 40 : -40 }}
@@ -202,8 +250,8 @@ export default function Home() {
                   <div className="w-16 h-16 rounded-2xl bg-white/5 border border-white/10 flex items-center justify-center mb-2">
                     <ListTodo className="w-8 h-8 text-white/20" />
                   </div>
-                  <p className="text-white/50 font-medium">{emptyMessages[activeTab].title}</p>
-                  <p className="text-white/30 text-sm text-center max-w-xs">{emptyMessages[activeTab].subtitle}</p>
+                  <p className="text-white/50 font-medium">{emptyMessages[activeTab]?.title}</p>
+                  <p className="text-white/30 text-sm text-center max-w-xs">{emptyMessages[activeTab]?.subtitle}</p>
                 </motion.div>
               ) : (
                 <div className="space-y-3">
@@ -222,12 +270,12 @@ export default function Home() {
                 </div>
               )}
             </motion.div>
-          </AnimatePresence>
-        )}
+          )}
+        </AnimatePresence>
 
         {/* Floating Add Button — only on Pending tab */}
         <AnimatePresence>
-          {activeTab === "pending" && (
+          {isTaskTab && activeTab === "pending" && (
             <motion.button
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
