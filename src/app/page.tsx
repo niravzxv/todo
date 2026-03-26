@@ -2,13 +2,14 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Plus, ListTodo, Sparkles, RefreshCw, LogOut } from "lucide-react";
+import { Plus, ListTodo, Sparkles, RefreshCw, LogOut, FileUp } from "lucide-react";
 import { useRouter } from "next/navigation";
 import TabNav from "@/app/components/TabNav";
 import TaskCard from "@/app/components/TaskCard";
 import AddTaskModal from "@/app/components/AddTaskModal";
 import DownloadButton from "@/app/components/DownloadButton";
 import Notepad from "@/app/components/Notepad";
+import ImportModal from "@/app/components/ImportModal";
 import { Task, TabType } from "@/app/types";
 
 const tabDirection: Record<TabType, number> = {
@@ -24,6 +25,7 @@ export default function Home() {
   const [activeTab, setActiveTab] = useState<TabType>("pending");
   const [prevTab, setPrevTab] = useState<TabType>("pending");
   const [modalOpen, setModalOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [loggingOut, setLoggingOut] = useState(false);
@@ -273,21 +275,38 @@ export default function Home() {
           )}
         </AnimatePresence>
 
-        {/* Floating Add Button — only on Pending tab */}
+        {/* Floating Action Buttons — only on Pending tab */}
         <AnimatePresence>
           {isTaskTab && activeTab === "pending" && (
-            <motion.button
+            <motion.div
               initial={{ opacity: 0, scale: 0.8 }}
               animate={{ opacity: 1, scale: 1 }}
               exit={{ opacity: 0, scale: 0.8 }}
-              whileHover={{ scale: 1.05 }}
-              whileTap={{ scale: 0.95 }}
-              onClick={() => setModalOpen(true)}
-              className="fixed bottom-8 right-8 flex items-center gap-2 px-5 py-3.5 rounded-2xl bg-gradient-to-r from-violet-500 to-purple-600 text-white font-semibold shadow-2xl shadow-violet-500/40 hover:shadow-violet-500/60 transition-shadow duration-300 z-30"
+              className="fixed bottom-8 right-8 flex items-center gap-3 z-30"
             >
-              <Plus className="w-5 h-5" />
-              Add Task
-            </motion.button>
+              {/* Import XLSX */}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setImportOpen(true)}
+                title="Import from XLSX"
+                className="flex items-center gap-2 px-4 py-3.5 rounded-2xl bg-white/10 backdrop-blur-md border border-white/20 text-white/80 font-semibold shadow-lg hover:bg-white/15 hover:text-white transition-all duration-200"
+              >
+                <FileUp className="w-5 h-5" />
+                <span className="hidden sm:inline">Import</span>
+              </motion.button>
+
+              {/* Add Task */}
+              <motion.button
+                whileHover={{ scale: 1.05 }}
+                whileTap={{ scale: 0.95 }}
+                onClick={() => setModalOpen(true)}
+                className="flex items-center gap-2 px-5 py-3.5 rounded-2xl bg-gradient-to-r from-violet-500 to-purple-600 text-white font-semibold shadow-2xl shadow-violet-500/40 hover:shadow-violet-500/60 transition-shadow duration-300"
+              >
+                <Plus className="w-5 h-5" />
+                Add Task
+              </motion.button>
+            </motion.div>
           )}
         </AnimatePresence>
       </div>
@@ -296,6 +315,12 @@ export default function Home() {
         open={modalOpen}
         onClose={() => setModalOpen(false)}
         onAdd={handleAddTask}
+      />
+
+      <ImportModal
+        open={importOpen}
+        onClose={() => setImportOpen(false)}
+        onImported={() => fetchTasks(true)}
       />
     </main>
   );
